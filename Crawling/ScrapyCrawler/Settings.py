@@ -10,13 +10,14 @@ NEWSPIDER_MODULE = "ScrapyCrawler.spiders"
 # robots.txt 정책을 존중할지 설정
 ROBOTSTXT_OBEY = False
 
-# 크롤링 결과를 내보낼 파일의 이름, 형식, 인코딩 설정
-FEEDS = {
-    "./../Data/bond_report_locator.csv": {
-        "format": "csv",
-        "encoding": "utf-8-sig"
-    }
+# 사용할 아이템 파이프라인과 순서를 지정
+ITEM_PIPELINES = {
+   "ScrapyCrawler.Pipelines.MultiCSVItemPipeline": 100
 }
 
 # 웹 사이트에서 각 값을 다운로드를 위해 대기할 시간을 설정
 DOWNLOAD_DELAY = 0.15
+
+# 로그 파일을 생성 및 덮어쓰기 설정
+LOG_FILE = "ScrapyCrawler.log"
+LOG_FILE_APPEND = False
