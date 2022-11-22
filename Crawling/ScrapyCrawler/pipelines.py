@@ -44,7 +44,7 @@ class MultiCSVItemPipeline(object):
             print(">>> 다음과 같이 크롤링한 데이터가 존재하지 않습니다: ", item)
             raise DropItem()
 
-        if int(item["date"][0][: 4]) < 2008:
+        if int(item["date"][0][: 4]) < 2012 or (int(item["date"][0][: 4]) == 2012 and int(item["date"][0][5 : 7]) < 11):
             print(">>> 크롤링한 데이터의 날짜가 수집 기간과 일치하지 않습니다: ", item["date"][0])
             raise DropItem()
 

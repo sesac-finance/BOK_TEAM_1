@@ -42,8 +42,8 @@ def base_rate_crawler() -> list:
         day = int(row.select("td")[1].text.split(" ")[1].replace("일", ""))
         base_rate = row.select("td")[2].text
 
-        # 연도가 2007년 이전이거나 2007년이면서 8월 이전의 데이터는 제외
-        if year < 2007 or (year == 2007 and month < 8):
+        # 연도가 2012년 이전이거나 2012년이면서 10월 이전의 데이터는 제외
+        if year < 2012 or (year == 2012 and month < 10):
             continue
 
         # 리스트 interest_result에 날짜와 기준금리로 구성된 리스트를 추가
