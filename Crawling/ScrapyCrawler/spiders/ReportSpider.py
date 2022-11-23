@@ -20,7 +20,7 @@ class MPBMinuteSpider(scrapy.Spider):
     # start_requests() 함수 정의
     def start_requests(self):
         """
-        크롤링을 수행할 웹 페이지에 HTTPS 요청을 보내고 콜백 함수로서 hwp_locator() 함수를 호출하는 함수입니다.\n
+        크롤링을 수행할 웹 페이지에 HTTPS 요청을 보내고 콜백 함수로서 pdf_locator() 함수를 호출하는 함수입니다.\n
         scrapy 모듈의 Request 클래스 객체를 반환합니다.
         """
 
@@ -44,14 +44,14 @@ class MPBMinuteSpider(scrapy.Spider):
             query_page_url = "?menuNo=200761&pageIndex="+ str(page)
         
             # 결과 값 반환
-            yield scrapy.Request(url = self.base_url + query_page_url, callback = self.hwp_locator)
+            yield scrapy.Request(url = self.base_url + query_page_url, callback = self.pdf_locator)
 
     # ----------------------------------------------------------------------------------------------------
 
-    # hwp_locator() 함수 정의
-    def hwp_locator(self, response):
+    # pdf_locator() 함수 정의
+    def pdf_locator(self, response):
         """
-        웹 페이지에서 HWP 파일의 주소를 추출하여 반환하는 함수입니다.\n
+        웹 페이지에서 PDF 파일의 주소를 추출하여 반환하는 함수입니다.\n
         scrapy 모듈의 Item 클래스 객체를 반환합니다.
         """
 
@@ -71,7 +71,7 @@ class MPBMinuteSpider(scrapy.Spider):
 
                 # 의사록 HWP 파일 주소를 추출해 "file_url" 열에 저장 
                 try:
-                    item["file_url"] = "https://www.bok.or.kr" + response.xpath("//*[@id='content']/div[3]/ul/li[{0}]/div/div[1]/div/div/ul/li[1]/a[1]/@href".format(list_num)).extract()[0]
+                    item["file_url"] = "https://www.bok.or.kr" + response.xpath("//*[@id='content']/div[3]/ul/li[{0}]/div/div[1]/div/div/ul/li[2]/a[1]/@href".format(list_num)).extract()[0]
                 except:
                     item["file_url"] = "https://www.bok.or.kr" + response.xpath("//*[@id='content']/div[3]/ul/li[{0}]/div/div[1]/a[1]/@href".format(list_num)).extract()[0]
 
