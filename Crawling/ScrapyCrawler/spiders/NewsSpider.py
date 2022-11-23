@@ -1,8 +1,9 @@
 # 필요한 모듈 불러오기
-import requests
-from bs4 import BeautifulSoup
+import pandas as pd
 import scrapy
-from ..Items import NewsCrawlingItem
+from ..Items import NewsURLCrawlingItem, NewsContentCrawlingItem
+import re
+import string
 
 # ----------------------------------------------------------------------------------------------------
 
@@ -15,140 +16,349 @@ class NewsURLSpider(scrapy.Spider):
     # 쿼리 스트링(Query String)을 제외한 기본 URL을 base_url에 할당
     base_url = "https://search.naver.com/search.naver"
 
+    # 신문사 쿼리 스트링을 담은 딕셔너리 news_office 초기화
+    news_offices = {1008: "머니투데이", 1009: "매일경제", 1011: "서울경제", 1015: "한국경제", 1016: "헤럴드경제"}
+
     # ----------------------------------------------------------------------------------------------------
 
     # start_requests() 함수 정의
     def start_requests(self):
         """
-        크롤링을 수행할 웹 페이지에 HTTPS 요청을 보내고 콜백 함수로서 hankyung_news_parse() 함수를 호출하는 함수입니다.\n
+        크롤링을 수행할 웹 페이지에 HTTPS 요청을 보내고 콜백 함수로서 news_locator() 함수를 호출하는 함수입니다.\n
         scrapy 모듈의 Request 클래스 객체를 반환합니다.
         """
 
-        # 3개월 단위로 검색할 검색 시작 일자와 검색 종료 일자를 설정
-        start_date = [
-            "20121101", "20130201", "20130501", "20130801", "20131101", "20140201", "20140501", "20140801",
-            "20141101", "20150201", "20150501", "20150801", "20151101", "20160201", "20160501", "20160801",
-            "20161101", "20170201", "20170501", "20170801", "20171101", "20180201", "20180501", "20180801",
-            "20181101", "20190201", "20190501", "20190801", "20191101", "20200201", "20200501", "20200801",
-            "20201101", "20210201", "20210501", "20210801", "20211101", "20220201", "20220501", "20220801"
-        ]
-        end_date = [
-            "20130131", "20130430", "20130731", "20131030", "20140131", "20140430", "20140731", "20141030",
-            "20150131", "20150430", "20150731", "20151030", "20160131", "20160430", "20160731", "20161030",
-            "20170131", "20170430", "20170731", "20171030", "20180131", "20180430", "20180731", "20181030",
-            "20190131", "20190430", "20190731", "20191030", "20200131", "20200430", "20200731", "20201030",
-            "20210131", "20210430", "20210731", "20211030", "20220131", "20220430", "20220731", "20221030"
-        ]
+        # 3개월 단위로 검색할 검색 시작일자와 검색 종료일자를 설정
+        start_date = [day.strftime("%Y%m%d") for day in (pd.date_range(start = "20130101", end = "20221231", freq = "QS") + pd.DateOffset(months = -2))]
+        end_date = [day.strftime("%Y%m%d") for day in (pd.date_range(start = "20130101", end = "20221231", freq = "Q") + pd.DateOffset(months = -2))]
+        end_date = [day.replace("0730", "0731").replace("1031", "1030") for day in end_date]
 
-        for idx in range(40):
+        # for 반복문을 사용해 각 신문사를 순회
+        for news_office in self.news_offices.keys():
 
-        # 쿼리 스트링(Query String)을 query_url에 할당
-            query_url = '?where=news&query="기준금리"&sort=1&news_office_checked=1015&nso=p:from{0}to{1}&start={2}1'.format(start_date[idx], end_date[idx], page)
+            # for 반복문을 사용해 각 기간을 순회
+            for idx in range(40):
 
-        # news_office_checked=1011 : 서울경제
-        # 1015 : 한국경제
-        # 1018: 이데일리
+                # 크롤링할 페이지를 나타내는 변수 page 초기화
+                page = 0
 
+                # 쿼리 스트링(Query String)을 query_url에 할당
+                query_url = '?where=news&query="금리"&sort=1&mynews=1&news_office_checked={0}&nso=p:from{1}to{2}&start={3}1'.format(
+                    news_office,
+                    start_date[idx],
+                    end_date[idx],
+                    page
+                )
 
-        # GET 요청을 보내고 응답 코드를 출력
-        res = requests.get(self.base_url + query_url)
-        print(">>> 한국은행 금융통화위원회 의사록 웹 페이지의 응답 코드: {0}\n".format(res.status_code))
-
-        # 해당 웹 페이지의 HTML 코드 텍스트를 가져와 변수 soup에 할당
-        soup = BeautifulSoup(res.text, "html.parser")
-
-        # HTML 코드에서 웹 페이지 주소 쿼리 스트링(Query String)에 사용할 pageNm 추출
-        pageNm = int(soup.select_one(".i.end a").attrs["href"].split("=")[-1])
-
-        #content > div.listBottom > div > ul > li.i.end > a
-        # for 반복문을 통해 각 페이지를 순회
-        for page in range(1, pageNm + 1, 1):
-
-            # 쿼리 스트링(Query String)을 query_page_url에 할당
-            query_page_url = "?menuNo=200761&pageIndex="+ str(page)
-        
-            # 결과 값 반환
-            yield scrapy.Request(url = self.base_url + query_page_url, callback = self.hwp_locator)
+                # 결과 값 반환
+                yield scrapy.Request(url = self.base_url + query_url, callback = self.news_locator, cb_kwargs = dict(
+                    news_office = news_office,
+                    start_date = start_date,
+                    end_date = end_date,
+                    idx = idx,
+                    page = page
+                ))
 
     # ----------------------------------------------------------------------------------------------------
 
-    # hwp_locator() 함수 정의
-    def hwp_locator(self, response):
+    # news_locator() 함수 정의
+    def news_locator(self, response, news_office : int, start_date : list, end_date : list, idx : int, page : int):
         """
-        웹 페이지에서 HWP 파일의 주소를 추출하여 반환하는 함수입니다.\n
-        scrapy 모듈의 Item 클래스 객체를 반환합니다.
+        웹 페이지에서 신문사, 뉴스기사 URL, 뉴스기사 날짜를 추출하고 다음 페이지를 호출하는 함수입니다.\n
+        scrapy 모듈의 Item 클래스 객체와 Request 클래스 객체를 반환합니다.
         """
 
         # 현재 크롤링을 진행하고 있는 웹 페이지 주소를 출력
         url = response.url
         print(f">>> 다음 URL을 크롤링 중입니다: {url}\n")
 
-        # MPBMinuteCrawlingItem() 클래스를 가져와 변수 item에 할당
-        item = MPBMinuteCrawlingItem()
+        # 검색결과가 없는 경우 안내 메시지 출력 후 더 이상 크롤링을 수행하지 않도록 설정
+        if response.css(".not_found02").get():
+            print(">>> 검색 결과가 존재하지 않습니다.")
+            if idx == 39: pass
+            else: print(">>> 검색 결과가 존재하지 않아 검색 기간을 재설정합니다: {0} - {1}\n".format(start_date[idx + 1], end_date[idx + 1]))
+            yield None
 
-        # for 반복문을 사용해 각 리포트를 순회
-        for list_num in range(1, 11):
+        else:
+        
+            # NewsURLCrawlingItem() 클래스를 가져와 변수 item에 할당
+            item = NewsURLCrawlingItem()
+
+            # for 반복문을 사용해 각 뉴스 기사에 접근
+            for list_num in range(1, 11):
+
+                # 뉴스 기사의 ID에 접근하기 위해 계산
+                news_num = list_num + page * 10
+
+                # 신문사, 뉴스기사 URL, 뉴스기사 날짜를 추출해 각 열에 저장
+                item["news_office"] = self.news_offices[news_office]
+                item["news_url"] = response.xpath("//*[@id='sp_nws{0}']/div/div/a/@href".format(news_num)).extract()
+                item["date"] = response.xpath("//*[@id='sp_nws{0}']/div/div/div[1]/div[2]/span/text()".format(news_num)).extract()[-1 :]
             
-            try:
-                # 의사록 제목을 추출해 "title" 열에 저장
-                item["title"] = self.title_preprocessor(response.xpath("//*[@id='content']/div[3]/ul/li[{0}]/div/span/a/span/span/text()".format(list_num)).extract())
-
-                # 의사록 HWP 파일 주소를 추출해 "file_url" 열에 저장 
-                try:
-                    item["file_url"] = ["https://www.bok.or.kr" + response.xpath("//*[@id='content']/div[3]/ul/li[{0}]/div/div[1]/div/div/ul/li[1]/a[1]/@href".format(list_num)).extract()[0]]
-                except:
-                    item["file_url"] = ["https://www.bok.or.kr" + response.xpath("//*[@id='content']/div[3]/ul/li[{0}]/div/div[1]/a[1]/@href".format(list_num)).extract()[0]]
-
-                # 의사록 작성일자를 추출해 "date" 열에 저장
-                item["date"] = self.date_preprocessor(response.xpath("//*[@id='content']/div[3]/ul/li[{0}]/div/span/a/span/span/text()".format(list_num)).extract())
-
                 # 결과 값 반환
                 yield item
 
-            # 오류 발생 시 for 반복문으로 회귀
-            except:
-                continue
+            # 다음 페이지로 페이지 수 조정 후 다음 페이지 호출
+            page += 1
 
-    # ----------------------------------------------------------------------------------------------------
+            # 쿼리 스트링(Query String)을 query_url에 할당
+            query_url = '?where=news&query="금리"&sort=1&mynews=1&news_office_checked={0}&nso=p:from{1}to{2}&start={3}1'.format(
+                news_office,
+                start_date[idx],
+                end_date[idx],
+                page
+            )
 
-    # date_preprocessor() 함수 정의
-    def title_preprocessor(self, crawled_title : list) -> list:
-        """
-        한국은행 웹 페이지에서 크롤링해 온 의사록 제목에서 날짜를 제거하고 정리하는 함수입니다.\n
-        의사록 제목으로 구성된 리스트를 반환합니다.
-        """
-
-        # 결과 값이 존재하지 않는 경우 제목에 대한 전처리를 수행하지 않도록 결과 값을 그대로 반환
-        if not crawled_title:
-            return crawled_title
-
-        # 크롤링해 온 제목에서 괄호를 제거하고 띄어쓰기를 "_"로 대체
-        title = crawled_title[0].split("(")[1].replace(")", "").replace(" ", "_")
-
-        # 결과 값 반환
-        return [f"{title}_금융통화위원회_의사록"]
-
-    # ----------------------------------------------------------------------------------------------------
-
-    # date_preprocessor() 함수 정의
-    def date_preprocessor(self, crawled_date : list) -> list:
-        """
-        한국은행 웹 페이지에서 크롤링해 온 날짜를 4자리의 연도, 2자리의 월, 2자리의 일자로 변환하는 함수입니다.\n
-        날짜로 구성된 리스트를 반환합니다.
-        """
-
-        # 크롤링해 온 날짜에서 괄호를 제거하고 연도, 월, 일 분리
-        date = crawled_date[0].split("(")[-1].replace(")", "")
-        try:
-            year, month, day = date.split(".")
-        except:
-            year, month, day, pad = date.split(".")
-
-        # zfill() 함수를 사용해 월과 일을 두 자리의 숫자가 되도록 0을 채우기
-        month = month.zfill(2)
-        day = day.zfill(2)
-
-        # 결과 값 반환
-        return [f"{year}.{month}.{day}"]
+            yield scrapy.Request(url = self.base_url + query_url, callback = self.news_locator, cb_kwargs = dict(
+                news_office = news_office,
+                start_date = start_date,
+                end_date = end_date,
+                idx = idx,
+                page = page
+            ))
 
 # ----------------------------------------------------------------------------------------------------
+
+# NewsContentSpider() 클래스 정의
+class NewsContentSpider(scrapy.Spider):
+
+    # 스파이더 이름 정의
+    name = "NewsContentCrawler"
+
+    # ----------------------------------------------------------------------------------------------------
+
+    # start_requests() 함수 정의
+    def start_requests(self):
+        """
+        크롤링을 수행할 웹 페이지에 HTTPS 요청을 보내고 신문사에 따라 각각의 콜백 함수를 호출하는 함수입니다.\n
+        scrapy 모듈의 Request 클래스 객체를 반환합니다.
+        """
+
+        # 크롤링을 위해 뉴스 URL을 담은 CSV 파일을 불러와 데이터프레임 생성
+        news_df = pd.read_csv("./../Data/News_Location.csv", header = 0, encoding = "utf-8-sig")
+
+        # for 반복문을 사용하여 데이터프레임의 각 행을 순회
+        for idx in news_df.index:
+
+            # 뉴스 기사의 URL, 신문사, 기사 작성일자를 추출
+            news_office = news_df.loc[idx, "news_office"]
+            news_url = news_df.loc[idx, "news_url"]
+            date = news_df.loc[idx, "date"]
+
+            # 머니투데이일 경우 money_parser() 함수 호출
+            if news_office == "머니투데이":
+                yield scrapy.Request(url = news_url, callback = self.money_parser, cb_kwargs = dict(news_office = news_office, date = date))
+
+            # 매일경제일 경우 maeil_parser() 함수 호출
+            elif news_office == "매일경제":
+                yield scrapy.Request(url = news_url, callback = self.maeil_parser, cb_kwargs = dict(news_office = news_office, date = date))
+
+            # 서울경제일 경우 seoul_parser() 함수 호출
+            elif news_office == "서울경제":
+                headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/107.0.0.0 Safari/537.36"}
+                yield scrapy.Request(url = news_url, callback = self.seoul_parser, headers = headers, cb_kwargs = dict(news_office = news_office, date = date))
+
+            # 한국경제일 경우 korea_parser() 함수 호출
+            elif news_office == "한국경제":
+                yield scrapy.Request(url = news_url, callback = self.korea_parser, cb_kwargs = dict(news_office = news_office, date = date))
+
+            # 헤럴드경제일 경우 herald_parser() 함수 호출
+            else:
+                yield scrapy.Request(url = news_url, callback = self.herald_parser, cb_kwargs = dict(news_office = news_office, date = date))
+
+    # ----------------------------------------------------------------------------------------------------
+
+    # money_parser() 함수 정의
+    def money_parser(self, response, news_office : str, date : str):
+        """
+        머니투데이 웹 페이지에서 뉴스기사 제목과 뉴스기사 내용을 추출하는 함수입니다.\n
+        scrapy 모듈의 Item 클래스 객체를 반환합니다.
+        """
+        
+        # 현재 크롤링을 진행하고 있는 웹 페이지 주소를 출력
+        url = response.url
+        print(f">>> 다음 URL을 크롤링 중입니다: {url}\n")
+
+        # NewsURLCrawlingItem() 클래스를 가져와 변수 item에 할당
+        item = NewsContentCrawlingItem()
+
+        # 뉴스기사 내용을 추출해 변수 news_body에 할당
+        news_body = " ".join([text.strip() for text in response.xpath("//*[@id='textBody']/text()").extract()]).strip()
+
+        # 신문사, 뉴스기사 제목, 뉴스기사 내용, 뉴스기사 날짜를 추출해 각 열에 저장
+        item["news_office"] = news_office
+        item["news_title"] = response.css(".view_top h1::text").get().strip()
+        item["news_body"] = self.news_body_cleanser(news_body)
+        item["date"] = date
+
+        # 결과 값 반환
+        yield item
+
+    # ----------------------------------------------------------------------------------------------------
+
+    # maeil_parser() 함수 정의
+    def maeil_parser(self, response, news_office : str, date : str):
+        """
+        매일경제 웹 페이지에서 뉴스기사 제목과 뉴스기사 내용을 추출하는 함수입니다.\n
+        scrapy 모듈의 Item 클래스 객체를 반환합니다.
+        """
+    
+        # 현재 크롤링을 진행하고 있는 웹 페이지 주소를 출력
+        url = response.url
+        print(f">>> 다음 URL을 크롤링 중입니다: {url}\n")
+
+        # NewsURLCrawlingItem() 클래스를 가져와 변수 item에 할당
+        item = NewsContentCrawlingItem()
+
+        try:
+            # 뉴스기사 내용을 추출해 변수 news_body에 할당
+            news_body = " ".join([text.strip() for text in response.xpath("//*[@id='container']/section/div[3]/section/div[1]/div[1]/div[1]/text()").extract()]).strip()
+
+            # 신문사, 뉴스기사 제목, 뉴스기사 내용, 뉴스기사 날짜을 각 열에 저장
+            item["news_office"] = news_office
+            item["news_title"] = response.css("div.news_ttl_sec h2::text").get().strip()
+            item["news_body"] = self.news_body_cleanser(news_body)
+            item["date"] = date
+        
+            # 결과 값 반환
+            yield item
+
+        # 오류 발생시 매경프리미엄 크롤링 코드를 시도
+        except:
+            # 뉴스기사 내용을 추출해 변수 news_body에 할당
+            news_body = " ".join([text.strip() for text in response.css(".view_txt::text").extract()]).strip()
+
+            # 신문사, 뉴스기사 제목, 뉴스기사 내용, 뉴스기사 날짜을 각 열에 저장
+            item["news_office"] = news_office
+            item["news_title"] = response.css(".view_title h1::text").get().strip()
+            item["news_body"] = self.news_body_cleanser(news_body)
+            item["date"] = date
+        
+            # 결과 값 반환
+            yield item
+
+    # ----------------------------------------------------------------------------------------------------
+
+    # seoul_parser() 함수 정의
+    def seoul_parser(self, response, news_office : str, date : str):
+        """
+        서울경제 웹 페이지에서 뉴스기사 제목과 뉴스기사 내용을 추출하는 함수입니다.\n
+        scrapy 모듈의 Item 클래스 객체를 반환합니다.
+        """
+        
+        # 현재 크롤링을 진행하고 있는 웹 페이지 주소를 출력
+        url = response.url
+        print(f">>> 다음 URL을 크롤링 중입니다: {url}\n")
+
+        # NewsURLCrawlingItem() 클래스를 가져와 변수 item에 할당
+        item = NewsContentCrawlingItem()
+
+        # 네이버 뉴스 홈페이지인 경우 신문사, 뉴스기사 제목, 뉴스기사 내용, 뉴스기사 날짜를 추출해 각 열에 저장
+        if "https://n.news.naver.com" in url:
+            news_body = " ".join([text.strip() for text in response.xpath("//*[@id='dic_area']/text()").extract()]).strip()
+            item["news_office"] = news_office
+            item["news_title"] =  response.xpath("//*[@id='ct']/div[1]/div[2]/h2/text()").get()
+            item["news_body"] = self.news_body_cleanser(news_body)
+            item["date"] = date
+ 
+            # 결과 값 반환
+            yield item
+
+        # 서울경제 홈페이지인 경우 신문사, 뉴스기사 제목, 뉴스기사 내용, 뉴스기사 날짜를 추출해 각 열에 저장
+        else:
+            news_body = " ".join([text.strip() for text in response.css(".article_view::text").extract()]).strip()
+            item["news_office"] = news_office
+            item["news_title"] =  response.css(".article_head h1::text").get().strip()
+            item["news_body"] = self.news_body_cleanser(news_body)
+            item["date"] = date
+
+            # 결과 값 반환
+            yield item
+
+    # ----------------------------------------------------------------------------------------------------
+
+    # korea_parser() 함수 정의
+    def korea_parser(self, response, news_office : str, date : str):
+        """
+        한국경제 웹 페이지에서 뉴스기사 제목과 뉴스기사 내용을 추출하는 함수입니다.\n
+        scrapy 모듈의 Item 클래스 객체를 반환합니다.
+        """
+        
+        # 현재 크롤링을 진행하고 있는 웹 페이지 주소를 출력
+        url = response.url
+        print(f">>> 다음 URL을 크롤링 중입니다: {url}\n")
+
+        # NewsURLCrawlingItem() 클래스를 가져와 변수 item에 할당
+        item = NewsContentCrawlingItem()
+
+        # 뉴스기사 내용을 추출해 변수 news_body에 할당
+        news_body = " ".join([text.strip() for text in response.css(".article-body::text").extract()]).strip()
+
+        # 신문사, 뉴스기사 제목, 뉴스기사 내용, 뉴스기사 날짜를 추출해 각 열에 저장
+        item["news_office"] = news_office
+        try:
+            item["news_title"] =  response.css(".headline::text").get().strip()
+        except:
+            item["news_title"] =  response.css(".article-tit::text").get().strip()
+        item["news_body"] = self.news_body_cleanser(news_body)
+        item["date"] = date
+   
+        # 결과 값 반환
+        yield item
+
+    # ----------------------------------------------------------------------------------------------------
+
+    # herald_parser() 함수 정의
+    def herald_parser(self, response, news_office : str, date : str):
+        """
+        헤럴드경제 웹 페이지에서 뉴스기사 제목과 뉴스기사 내용을 추출하는 함수입니다.\n
+        scrapy 모듈의 Item 클래스 객체를 반환합니다.
+        """
+        
+        # 현재 크롤링을 진행하고 있는 웹 페이지 주소를 출력
+        url = response.url
+        print(f">>> 다음 URL을 크롤링 중입니다: {url}\n")
+
+        # NewsURLCrawlingItem() 클래스를 가져와 변수 item에 할당
+        item = NewsContentCrawlingItem()
+
+        # 뉴스기사 내용을 추출해 변수 news_body에 할당
+        news_body = " ".join([text.strip() for text in response.css("#articleText ::text").extract()]).strip()
+
+        # 신문사, 뉴스기사 제목, 뉴스기사 내용, 뉴스기사 날짜를 추출해 각 열에 저장
+        item["news_office"] = news_office
+        item["news_title"] =  response.css(".article_title.ellipsis2::text").get().strip()
+        item["news_body"] = self.news_body_cleanser(news_body)
+        item["date"] = date
+   
+        # 결과 값 반환
+        yield item
+
+    # ----------------------------------------------------------------------------------------------------
+
+    # news_body_cleanser() 함수 정의
+    def news_body_cleanser(self, news_body : str) -> str :
+        """
+        뉴스기사 내용을 가져와 문장 부호와 불필요한 내용을 제거하는 함수입니다.\n
+        전처리된 뉴스기사 내용인 문자열(String) 객체를 반환합니다.
+        """
+
+        # compile() 메서드를 사용해 삭제할 괄호 및 괄호 안의 문자, 이메일, 기자 이름을 지정
+        parenthesize_pattern = re.compile(r"\[[^]]*\]|\([^)]*\)|\<[^>]*\>")
+        email_pattern = re.compile(r"[a-zA-Z0-9+-_./]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+")
+        reporter_pattern = re.compile(r"([가-힣]{2,5} 기자)|([가-힣]{2,5}기자)")
+
+        # sub() 메서드를 사용해 괄호 및 괄호 안의 문자, 이메일, 기자 이름을 제거
+        news_body = parenthesize_pattern.sub("", news_body).strip()
+        news_body = email_pattern.sub("", news_body).strip()
+        news_body = reporter_pattern.sub("", news_body).strip()
+
+        # replace() 메서드를 사용해 줄바꿈, 탭, 띄워쓰기 제거
+        news_body = news_body.replace("\n", " ").replace("\t", " ").replace("\xa0", " ")
+
+        # translate() 메서드를 사용해 각종 기호, 줄바꿈 및 문장부호를 제거
+        symbols = string.punctuation.replace("%", "").replace("~", "") + "·ㆍ■◆△▷▶“”‘’…※↑↓"
+        news_body = news_body.translate(str.maketrans("", "", symbols))
+
+        # 결과 값 반환
+        return news_body

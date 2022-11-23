@@ -18,6 +18,9 @@ ITEM_PIPELINES = {
 # 웹 사이트에서 각 값을 다운로드를 위해 대기할 시간을 설정
 DOWNLOAD_DELAY = 0.15
 
+# 일시정지 및 이어서 저장하기 위한 정보를 저장할 경로 설정
+JOBDIR = "./../Data/save_spider"
+
 # 로그 파일을 생성 및 덮어쓰기 설정
 LOG_FILE = "ScrapyCrawler.log"
 LOG_FILE_APPEND = False
