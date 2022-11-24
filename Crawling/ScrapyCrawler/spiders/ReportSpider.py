@@ -42,7 +42,7 @@ class MPBMinuteSpider(scrapy.Spider):
 
             # 쿼리 스트링(Query String)을 query_page_url에 할당
             query_page_url = "?menuNo=200761&pageIndex="+ str(page)
-        
+
             # 결과 값 반환
             yield scrapy.Request(url = self.base_url + query_page_url, callback = self.pdf_locator)
 
@@ -67,13 +67,13 @@ class MPBMinuteSpider(scrapy.Spider):
             
             try:
                 # 의사록 제목을 추출해 "title" 열에 저장
-                item["title"] = self.title_preprocessor(response.xpath("//*[@id='content']/div[3]/ul/li[{0}]/div/span/a/span/span/text()".format(list_num)).extract())
+                item["title"] = self.title_preprocessor(response.xpath("//*[@id='content']/div[3]/ul/li[{0}]/div/span/a/span/span/text()".format(list_num)).get())
 
                 # 의사록 HWP 파일 주소를 추출해 "file_url" 열에 저장 
                 try:
-                    item["file_url"] = "https://www.bok.or.kr" + response.xpath("//*[@id='content']/div[3]/ul/li[{0}]/div/div[1]/div/div/ul/li[2]/a[1]/@href".format(list_num)).extract()[0]
+                    item["file_url"] = "https://www.bok.or.kr" + response.xpath("//*[@id='content']/div[3]/ul/li[{0}]/div/div[1]/div/div/ul/li[2]/a[1]/@href".format(list_num)).get()
                 except:
-                    item["file_url"] = "https://www.bok.or.kr" + response.xpath("//*[@id='content']/div[3]/ul/li[{0}]/div/div[1]/a[1]/@href".format(list_num)).extract()[0]
+                    item["file_url"] = "https://www.bok.or.kr" + response.xpath("//*[@id='content']/div[3]/ul/li[{0}]/div/div[1]/a[1]/@href".format(list_num)).get()
 
                 # 의사록 작성일자를 추출해 "date" 열에 저장
                 item["date"] = self.date_preprocessor(response.xpath("//*[@id='content']/div[3]/ul/li[{0}]/div/span/a/span/span/text()".format(list_num)).get())
@@ -88,10 +88,10 @@ class MPBMinuteSpider(scrapy.Spider):
     # ----------------------------------------------------------------------------------------------------
 
     # date_preprocessor() 함수 정의
-    def title_preprocessor(self, crawled_title : list) -> list:
+    def title_preprocessor(self, crawled_title : str) -> str:
         """
         한국은행 웹 페이지에서 크롤링해 온 의사록 제목에서 날짜를 제거하고 정리하는 함수입니다.\n
-        의사록 제목으로 구성된 리스트를 반환합니다.
+        의사록 제목으로 구성된 문자열(String)을 반환합니다.
         """
 
         # 결과 값이 존재하지 않는 경우 제목에 대한 전처리를 수행하지 않도록 결과 값을 그대로 반환
@@ -99,10 +99,10 @@ class MPBMinuteSpider(scrapy.Spider):
             return crawled_title
 
         # 크롤링해 온 제목에서 괄호를 제거하고 띄어쓰기를 "_"로 대체
-        title = crawled_title[0].split("(")[1].replace(")", "").replace(" ", "_")
+        title = crawled_title.split("(")[1].replace(")", "").replace(" ", "_")
 
         # 결과 값 반환
-        return [f"{title}_금융통화위원회_의사록"]
+        return f"{title}_금융통화위원회_의사록"
 
     # ----------------------------------------------------------------------------------------------------
 

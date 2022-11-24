@@ -31,7 +31,7 @@ class NewsURLSpider(scrapy.Spider):
         # 3개월 단위로 검색할 검색 시작일자와 검색 종료일자를 설정
         start_date = [day.strftime("%Y%m%d") for day in (pd.date_range(start = "20130101", end = "20221231", freq = "QS") + pd.DateOffset(months = -2))]
         end_date = [day.strftime("%Y%m%d") for day in (pd.date_range(start = "20130101", end = "20221231", freq = "Q") + pd.DateOffset(months = -2))]
-        end_date = [day.replace("0730", "0731").replace("1031", "1030") for day in end_date]
+        end_date = [day.replace("0730", "0731") for day in end_date]
 
         # for 반복문을 사용해 각 신문사를 순회
         for news_office in self.news_offices.keys():
@@ -109,6 +109,7 @@ class NewsURLSpider(scrapy.Spider):
                 page
             )
 
+            # 결과 값 반환
             yield scrapy.Request(url = self.base_url + query_url, callback = self.news_locator, cb_kwargs = dict(
                 news_office = news_office,
                 start_date = start_date,
@@ -135,7 +136,7 @@ class NewsContentSpider(scrapy.Spider):
         """
 
         # 크롤링을 위해 뉴스 URL을 담은 CSV 파일을 불러와 데이터프레임 생성
-        news_df = pd.read_csv("./../Data/News_Location.csv", header = 0, encoding = "utf-8-sig")
+        news_df = pd.read_csv("./../Data/Location/News_Location.csv", header = 0, encoding = "utf-8-sig")
 
         # for 반복문을 사용하여 데이터프레임의 각 행을 순회
         for idx in news_df.index:
@@ -210,7 +211,9 @@ class NewsContentSpider(scrapy.Spider):
         # NewsURLCrawlingItem() 클래스를 가져와 변수 item에 할당
         item = NewsContentCrawlingItem()
 
+        # 매일경제 웹 페이지 크롤링 코드를 시도
         try:
+
             # 뉴스기사 내용을 추출해 변수 news_body에 할당
             news_body = " ".join([text.strip() for text in response.xpath("//*[@id='container']/section/div[3]/section/div[1]/div[1]/div[1]/text()").extract()]).strip()
 
@@ -223,8 +226,9 @@ class NewsContentSpider(scrapy.Spider):
             # 결과 값 반환
             yield item
 
-        # 오류 발생시 매경프리미엄 크롤링 코드를 시도
+        # 오류 발생 시 매경프리미엄 웹 페이지 크롤링 코드를 시도
         except:
+
             # 뉴스기사 내용을 추출해 변수 news_body에 할당
             news_body = " ".join([text.strip() for text in response.css(".view_txt::text").extract()]).strip()
 
@@ -357,7 +361,7 @@ class NewsContentSpider(scrapy.Spider):
         news_body = news_body.replace("\n", " ").replace("\t", " ").replace("\xa0", " ")
 
         # translate() 메서드를 사용해 각종 기호, 줄바꿈 및 문장부호를 제거
-        symbols = string.punctuation.replace("%", "").replace("~", "") + "·ㆍ■◆△▷▶“”‘’…※↑↓"
+        symbols = string.punctuation.replace("%", "").replace("~", "") + "·ㆍ■◆△▷▶▼�“”‘’…※↑↓"
         news_body = news_body.translate(str.maketrans("", "", symbols))
 
         # 결과 값 반환

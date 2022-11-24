@@ -3,13 +3,15 @@ from scrapy.exporters import CsvItemExporter
 import pandas as pd
 from scrapy.exceptions import DropItem
 
+# ----------------------------------------------------------------------------------------------------
+
 # MultiCSVItemPipeline() 클래스 정의
 class MultiCSVItemPipeline(object):
 
     # 저장할 파일 이름을 담은 리스트 save_names 초기화
     save_names = ["MPB_Minute_Location", "Bond_Report_Location", "News_Location", "News_Content"]
 
-    # 아이템의 개수를 셀 변수 item_cnt 초기화
+    # Item 클래스 객체의 개수를 셀 변수 item_cnt 초기화
     item_cnt = 0
 
     # ----------------------------------------------------------------------------------------------------
@@ -29,16 +31,16 @@ class MultiCSVItemPipeline(object):
 
         # 뉴스 내용을 가져오는 경우 뉴스 URL을 담은 CSV 파일을 불러와 데이터프레임 생성
         if spider.name == "NewsContentCrawler":
-            news_df = pd.read_csv("./../Data/News_Location.csv", header = 0, encoding = "utf-8-sig")
+            news_df = pd.read_csv("./../Data/Location/News_Location.csv", header = 0, encoding = "utf-8-sig")
 
             # CSV 파일의 행 개수에 따라 50,000개 데이터가 담길 수 있도록 CSV 파일을 여러 개 생성 후 내보내기 시작
-            self.files = dict([(file_num, open(f"./../Data/{spider_type}_{file_num}.csv", "wb")) for file_num in range(1, len(news_df) // 50000 + 2)])
+            self.files = dict([(file_num, open(f"./../Data/Text/{spider_type}_{file_num}.csv", "wb")) for file_num in range(1, len(news_df) // 50000 + 2)])
             self.exporters = dict([(file_num, CsvItemExporter(self.files[file_num], encoding = "utf-8-sig")) for file_num in range(1, len(news_df) // 50000 + 2)])
             [csv_exporter.start_exporting() for csv_exporter in self.exporters.values()]
 
         else:
             # 지정한 파일 이름의 CSV 파일을 생성 후 열기
-            self.file = open(f"./../Data/{spider_type}.csv", "wb")
+            self.file = open(f"./../Data/Location/{spider_type}.csv", "wb")
 
             # CSV 파일로 내보내기 시작
             self.exporter = CsvItemExporter(self.file, encoding = "utf-8-sig")
@@ -68,7 +70,7 @@ class MultiCSVItemPipeline(object):
         # 뉴스 내용을 가져오는 경우 50,000개씩 데이터를 나누어 저장
         if spider.name == "NewsContentCrawler":
             self.item_cnt += 1
-            list(self.exporters.values())[self.item_cnt // 50000].export_item(item)
+            list(self.exporters.values())[(self.item_cnt - 1) // 50000].export_item(item)
 
         else:
             # Item 객체를 CSV 파일로 내보내기

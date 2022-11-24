@@ -67,5 +67,5 @@ def base_rate_exporter(interest_result : list):
     base_rate_df = pd.DataFrame(interest_result, columns = ["date", "interest_rate"])
 
     # to_csv() 메서드를 사용해 데이터프레임을 CSV 파일로 저장 후 안내 메시지 출력
-    base_rate_df.to_csv("./../Data/Base_Rate.csv", index = False, encoding = "utf-8-sig")
+    base_rate_df.to_csv("./../Data/Text/Base_Rate.csv", index = False, encoding = "utf-8-sig")
     print(">>> 한국은행 기준금리 크롤링 결과가 저장되었습니다.")
