@@ -28,19 +28,20 @@ def bond_report_extractor():
     # 텍스트 추출의 시작을 알리는 안내 메시지 출력
     print(">>> 채권 리포트 텍스트 추출이 시작되었습니다.\n")
 
+
     # for 반복문 및 enumerate를 사용해 채권 리포트의 제목과 인덱스를 순회
-    for idx, pdf_title in enumerate(bond_reports.values()):
+    for idx, pdf_title in enumerate(bond_reports.keys()):
 
         # from_file() 함수를 사용해 리포트 PDF 파일을 가져와 텍스트 추출
         parsed_pdf = parser.from_file(SAVE_DIR + f"{pdf_title}.pdf")
         texts = parsed_pdf["content"].strip().split("\n")
 
         # 리포트 PDF 파일에서 추출한 텍스트를 전처리하여 할당 후 안내 메시지 출력
-        report_df.loc[idx] = [list(bond_reports.keys())[idx], pdf_title, bond_report_cleanser(" ".join(texts))]
+        report_df.loc[idx] = [list(bond_reports.values())[idx], pdf_title, bond_report_cleanser(" ".join(texts))]
         print(f">>> 다음 채권 리포트 텍스트 추출이 완료되었습니다: {pdf_title}.pdf\n")
 
         # 텍스트 추출이 끝난 PDF 파일을 삭제
-        # os.remove(SAVE_DIR + f"{pdf_title}.pdf")
+        os.remove(SAVE_DIR + f"{pdf_title}.pdf")
     
     # 추출한 결과를 CSV 파일로 저장
     report_df.to_csv(SAVE_DIR + "Bond_Report_Content.csv", index = False)
@@ -79,8 +80,8 @@ def bond_report_downloader() -> dict :
         file_url = report_url_df.loc[idx, "file_url"]
         date = report_url_df.loc[idx, "date"]
 
-        # 채권 리포트의 작성일자를 키(Key), 증권사-제목을 값(Value)으로 딕셔너리에 추가
-        bond_reports[date] = "{0}-{1}-{2}".format(idx, writer, title)
+        # 채권 리포트의 증권사-제목을 키(Key), 작성일자를 값(Value)으로 딕셔너리에 추가
+        bond_reports["{0}-{1}-{2}".format(idx, writer, title)] = date
 
         # 채권 리포트 증권사-제목으로 PDF 파일을 다운로드
         with open(SAVE_DIR + "{0}.pdf".format(f"{idx}-{writer}-{title}"), "wb") as file:
@@ -121,10 +122,8 @@ def bond_report_cleanser(text : str) -> str :
     text = text.replace("\n", "").replace("\t", "")
 
     # translate() 메서드를 사용해 각종 기호, 줄바꿈 및 문장부호를 제거
-    symbols = string.punctuation.replace("%", "").replace("~", "") + "·･ㆍ․■□◆△▶▷“”‘’…※↑↓「」｢｣ⅠⅡⅢ"
-    text = text.translate(str.maketrans("", "", symbols))
+    symbols = string.punctuation.replace("%", "").replace("~", "") + "·･ㆍ․▣■□◆△▶▷“”‘’…※↑↓「」｢｣ⅠⅡⅢ�①②③④⑤"
+    text = text.translate(str.maketrans("", "", symbols)).strip()
 
     # 결과 값 반환
     return text
-
-bond_report_extractor()
